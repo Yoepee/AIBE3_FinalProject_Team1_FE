@@ -1,0 +1,44 @@
+name: Sync Fork (FF-only)
+
+on:
+  schedule:
+    - cron: '0 */3 * * *' # 3시간마다
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream & fetch
+        run: |
+          git remote add upstream https://github.com/prgrms-aibe-devcourse/AIBE3_Project2_Team3_FE.git
+          git fetch upstream
+
+      - name: Merge upstream/main (fast-forward only)
+        run: |
+          # fast-forward만 허용 (충돌/머지커밋 방지)
+          git merge --ff-only upstream/main || {
+            echo "Fast-forward 불가. 포크에 로컬 커밋이 있거나 diverge 상태입니다."; 
+            exit 1;
+          }
+
+      - name: Push
+        run: git push origin main
