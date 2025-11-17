@@ -29,7 +29,7 @@ jobs:
 
       - name: Add upstream & fetch
         run: |
-          git remote add upstream https://github.com/prgrms-aibe-devcourse/AIBE3_Project2_Team3_FE.git
+          git remote add upstream https://github.com/prgrms-aibe-devcourse/AIBE3_FinalProject_Team1_FE.git
           git fetch upstream
 
       - name: Merge upstream/main (fast-forward only)
@@ -41,4 +41,5 @@ jobs:
           }
 
       - name: Push
+
         run: git push origin main
