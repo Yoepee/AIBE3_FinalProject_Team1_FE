@@ -1,16 +1,12 @@
-name: Sync Fork (FF-only)
+name: Sync Fork
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # 3시간마다
+    - cron: '0 */3 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
-
-concurrency:
-  group: sync-fork
-  cancel-in-progress: false
 
 jobs:
   sync:
@@ -32,14 +28,12 @@ jobs:
           git remote add upstream https://github.com/prgrms-aibe-devcourse/AIBE3_FinalProject_Team1_FE.git
           git fetch upstream
 
-      - name: Merge upstream/main (fast-forward only)
+      - name: Merge upstream/main
         run: |
-          # fast-forward만 허용 (충돌/머지커밋 방지)
-          git merge --ff-only upstream/main || {
-            echo "Fast-forward 불가. 포크에 로컬 커밋이 있거나 diverge 상태입니다."; 
+          git merge upstream/main -m "Sync with upstream" || {
+            echo "⚠️ Merge 실패. 충돌 해결 필요";
             exit 1;
           }
 
       - name: Push
-
         run: git push origin main
