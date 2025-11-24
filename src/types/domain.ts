@@ -79,7 +79,7 @@ export interface Auth {
  */
 export enum ReportType {
   POST = "POST",
-  USER = "USER",
+  MEMBER = "MEMBER",
   REVIEW = "REVIEW",
 }
 
@@ -306,13 +306,8 @@ export interface UpdatePostDto {
  */
 export interface PostListFilters {
   categoryId?: number;
-  regionId?: number;
+  regionIds?: number[]; // 지역은 여러 개 선택 가능
   keyword?: string;
-  minDeposit?: number;
-  maxDeposit?: number;
-  minFee?: number;
-  maxFee?: number;
-  receiveMethod?: ReceiveMethod;
   page?: number;
   size?: number;
   sort?: string[]; // 정렬 기준 및 순서 배열 (예: ["createdAt,ASC", "id,DESC"])
