@@ -47,10 +47,6 @@ export type MemberResponse = Omit<Member, "password">;
 export interface CreateMemberDto {
   email: string;
   password: string;
-  name: string;
-  phoneNumber: string;
-  address1: string;
-  address2: string;
   nickname: string;
 }
 
@@ -446,6 +442,7 @@ export interface UpdateReservationDto {
 export interface ReservationLog extends BaseEntity {
   status: ReservationStatus;
   reservationId: number;
+  authorNickname: string;
 }
 
 /**
