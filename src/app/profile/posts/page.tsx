@@ -5,7 +5,6 @@
 
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { parseLocalDateString } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 import Image from "next/image";
@@ -15,6 +14,8 @@ import type { Post, Reservation } from "@/types/domain";
 import { ReceiveMethod, ReservationStatus } from "@/types/domain";
 
 import { getImageUrl } from "@/lib/utils/image";
+
+import { parseLocalDateString } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,6 +48,10 @@ import {
   User,
   X,
 } from "lucide-react";
+
+/**
+ * 마이페이지 - 내 게시글
+ */
 
 /**
  * 마이페이지 - 내 게시글
@@ -242,9 +247,9 @@ function PostCard({ post }: { post: Post }) {
 
   return (
     <Card className="mb-6">
-      <CardContent className="p-6">
+      <CardContent className="p-4 pt-4">
         {/* 게시글 정보 */}
-        <div className="flex gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4">
           {/* 이미지 */}
           <div className="shrink-0">
             <Image
@@ -261,7 +266,7 @@ function PostCard({ post }: { post: Post }) {
           </div>
 
           {/* 정보 */}
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col justify-center">
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 mb-1">
@@ -280,9 +285,13 @@ function PostCard({ post }: { post: Post }) {
                 )}
                 <p className="text-sm text-gray-600 mb-2">
                   {post.createdAt &&
-                    `작성일 : ${format(parseLocalDateString(post.createdAt), "yyyy-MM-dd", {
-                      locale: ko,
-                    })}`}
+                    `작성일 : ${format(
+                      parseLocalDateString(post.createdAt),
+                      "yyyy-MM-dd",
+                      {
+                        locale: ko,
+                      },
+                    )}`}
                 </p>
                 <p className="text-lg font-semibold text-blue-600">
                   {post.fee?.toLocaleString() || 0}원/일
@@ -436,7 +445,7 @@ function PostCard({ post }: { post: Post }) {
 
                     return (
                       <Card key={reservation.id} className="bg-gray-50">
-                        <CardContent className="p-4">
+                        <CardContent className="p-4 pt-4">
                           <div className="flex items-start justify-between mb-4">
                             {/* 예약자 정보 */}
                             <div className="flex items-center gap-3">
@@ -445,7 +454,11 @@ function PostCard({ post }: { post: Post }) {
                                   src={getImageUrl(
                                     reservation.author.profileImgUrl,
                                   )}
-                                  alt={reservation.author.nickname || reservation.author?.name || "예약자"}
+                                  alt={
+                                    reservation.author.nickname ||
+                                    reservation.author?.name ||
+                                    "예약자"
+                                  }
                                   width={48}
                                   height={48}
                                   className="rounded-full"
@@ -457,13 +470,17 @@ function PostCard({ post }: { post: Post }) {
                               )}
                               <div>
                                 <p className="font-semibold text-gray-900">
-                                  {reservation.author?.nickname || reservation.author?.name || "예약자"}
+                                  {reservation.author?.nickname ||
+                                    reservation.author?.name ||
+                                    "예약자"}
                                 </p>
                                 <p className="text-sm text-gray-600">
                                   신청일:{" "}
                                   {reservation.createdAt &&
                                     format(
-                                      parseLocalDateString(reservation.createdAt),
+                                      parseLocalDateString(
+                                        reservation.createdAt,
+                                      ),
                                       "yyyy-MM-dd",
                                       { locale: ko },
                                     )}
@@ -1040,7 +1057,6 @@ export default function MyPostsPage() {
     setPage(0); // 정렬 변경 시 첫 페이지로
   };
 
-
   return (
     <div className="p-0">
       {/* 헤더 */}
@@ -1089,9 +1105,9 @@ export default function MyPostsPage() {
         <div className="space-y-6">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="flex gap-4">
-                  <div className="h-24 w-24 bg-gray-200 rounded-lg" />
+              <CardContent className="p-4 pt-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-24 w-24 bg-gray-200 rounded-lg shrink-0" />
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-gray-200 rounded w-3/4" />
                     <div className="h-4 bg-gray-200 rounded w-1/2" />
@@ -1103,7 +1119,7 @@ export default function MyPostsPage() {
         </div>
       ) : posts.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
+          <CardContent className="p-12 pt-12 text-center">
             <p className="text-gray-500 mb-4">게시글이 없습니다.</p>
             <Link href="/posts/new">
               <Button>게시글 작성하기</Button>
