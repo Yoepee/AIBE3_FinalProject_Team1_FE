@@ -45,6 +45,26 @@ import { Filter, Heart, Search, X } from "lucide-react";
  * 게시글 목록 페이지
  */
 
+/**
+ * 게시글 목록 페이지
+ */
+
+/**
+ * 게시글 목록 페이지
+ */
+
+/**
+ * 게시글 목록 페이지
+ */
+
+/**
+ * 게시글 목록 페이지
+ */
+
+/**
+ * 게시글 목록 페이지
+ */
+
 const RECEIVE_METHOD_LABELS: Record<ReceiveMethod, string> = {
   DIRECT: "직거래",
   DELIVERY: "택배",
@@ -105,26 +125,91 @@ export default function PostsPage() {
   const filteredDistricts =
     selectedProvinceData?.child || selectedProvinceData?.children || [];
 
+  // 카테고리 선택 핸들러 - 대분류 선택 시 해당 대분류의 모든 소분류 ID 추가
+  const handleMainCategorySelect = (categoryId: number) => {
+    const currentCategoryIds = postFilters.categoryIds || [];
+    const mainCategoryData = mainCategories.find((c) => c.id === categoryId);
+    if (mainCategoryData) {
+      // 해당 대분류의 모든 하위 소분류 ID 가져오기
+      const subCategories =
+        mainCategoryData.child || mainCategoryData.children || [];
+      const subCategoryIds = subCategories.map((c) => c.id);
+
+      // 기존에 선택된 해당 대분류의 소분류들 제거
+      const newCategoryIds = currentCategoryIds.filter(
+        (id) => !subCategoryIds.includes(id),
+      );
+
+      // 모든 소분류 ID 추가
+      const allSubCategoryIds = [...newCategoryIds, ...subCategoryIds];
+      setPostFilters({
+        categoryIds:
+          allSubCategoryIds.length > 0 ? allSubCategoryIds : undefined,
+        page: 0,
+      });
+    }
+  };
+
+  // 카테고리 선택 핸들러 - 소분류 선택 시 해당 소분류 추가
+  const handleSubCategorySelect = (categoryId: number) => {
+    const currentCategoryIds = postFilters.categoryIds || [];
+    const mainCategoryData = mainCategories.find(
+      (c) => c.id === selectedMainCategory,
+    );
+
+    if (mainCategoryData) {
+      // 해당 대분류의 모든 소분류 ID 가져오기
+      const subCategories =
+        mainCategoryData.child || mainCategoryData.children || [];
+      const subCategoryIds = subCategories.map((c) => c.id);
+
+      // 해당 대분류의 모든 소분류가 이미 선택되어 있는지 확인
+      const allSubCategoriesSelected = subCategoryIds.every((id) =>
+        currentCategoryIds.includes(id),
+      );
+
+      if (allSubCategoriesSelected) {
+        // 모든 소분류가 선택되어 있으면 해당 대분류의 모든 소분류 제거 후 선택한 소분류만 추가
+        const newCategoryIds = currentCategoryIds.filter(
+          (id) => !subCategoryIds.includes(id),
+        );
+        setPostFilters({
+          categoryIds: [...newCategoryIds, categoryId],
+          page: 0,
+        });
+      } else if (!currentCategoryIds.includes(categoryId)) {
+        // 선택한 소분류가 없으면 추가
+        setPostFilters({
+          categoryIds: [...currentCategoryIds, categoryId],
+          page: 0,
+        });
+      }
+    } else if (!currentCategoryIds.includes(categoryId)) {
+      setPostFilters({
+        categoryIds: [...currentCategoryIds, categoryId],
+        page: 0,
+      });
+    }
+  };
+
   // 카테고리 변경 핸들러
   const handleMainCategoryChange = (categoryId: number | null) => {
     setSelectedMainCategory(categoryId);
-    setSelectedSubCategory(null);
-    // 대분류 선택 해제 시 필터도 해제
-    if (!categoryId) {
-      setPostFilters({ categoryId: undefined, page: 0 });
+    setSelectedSubCategory(null); // 대분류 변경 시 소분류 초기화
+    if (categoryId) {
+      // 대분류 선택 시 자동으로 추가 (전체 선택과 동일하게 동작)
+      handleMainCategorySelect(categoryId);
     } else {
-      // 대분류 선택 시 필터는 적용하지 않고, 소분류 선택 대기
-      setPostFilters({ categoryId: undefined, page: 0 });
+      // 대분류 선택 해제 시 필터도 해제
+      setPostFilters({ categoryIds: undefined, page: 0 });
     }
   };
 
   const handleSubCategoryChange = (categoryId: number | null) => {
     setSelectedSubCategory(categoryId);
-    // 소분류 선택 시에만 필터 적용 (필수)
-    setPostFilters({
-      categoryId: categoryId || undefined,
-      page: 0,
-    });
+    if (categoryId) {
+      handleSubCategorySelect(categoryId);
+    }
   };
 
   // 지역 선택 핸들러 - 시/도 선택 시 해당 시/도 추가
@@ -149,58 +234,117 @@ export default function PostsPage() {
     }
   };
 
-  // 선택된 카테고리 이름 가져오기 (소분류가 필수이므로 소분류 선택 시에만 표시)
-  const getSelectedCategoryName = () => {
-    if (selectedSubCategory) {
-      const subCategory = filteredSubCategories.find(
-        (c) => c.id === selectedSubCategory,
-      );
-      const mainCategory = mainCategories.find(
-        (c) => c.id === selectedMainCategory,
-      );
-      return mainCategory && subCategory
-        ? `${mainCategory.name} > ${subCategory.name}`
-        : null;
+  // 선택된 카테고리 이름들 가져오기
+  const getSelectedCategoryNames = () => {
+    if (!postFilters.categoryIds || postFilters.categoryIds.length === 0) {
+      return [];
     }
-    return null;
+    const result: Array<{ id: number; name: string }> = [];
+    const processedMainCategories = new Set<number>();
+
+    // 각 대분류에 대해 확인
+    for (const mainCategory of mainCategories) {
+      const subCategories = mainCategory.child || mainCategory.children || [];
+      if (subCategories.length === 0) continue;
+
+      const subCategoryIds = subCategories.map((c) => c.id);
+      const selectedSubCategoryIds =
+        postFilters.categoryIds?.filter((id) => subCategoryIds.includes(id)) ||
+        [];
+
+      // 해당 대분류의 모든 소분류가 선택되어 있는지 확인
+      const allSubCategoriesSelected =
+        selectedSubCategoryIds.length > 0 &&
+        selectedSubCategoryIds.length === subCategoryIds.length;
+
+      if (allSubCategoriesSelected) {
+        // 모든 소분류가 선택되어 있으면 "대분류 > 전체" 형태로 표시
+        result.push({
+          id: mainCategory.id, // 대분류 ID를 키로 사용 (표시용)
+          name: `${mainCategory.name} > 전체`,
+        });
+        processedMainCategories.add(mainCategory.id);
+      } else if (selectedSubCategoryIds.length > 0) {
+        // 일부 소분류만 선택되어 있으면 각 소분류를 개별적으로 표시
+        for (const subCategoryId of selectedSubCategoryIds) {
+          const subCategory = subCategories.find((c) => c.id === subCategoryId);
+          if (subCategory) {
+            result.push({
+              id: subCategoryId,
+              name: `${mainCategory.name} > ${subCategory.name}`,
+            });
+          }
+        }
+        processedMainCategories.add(mainCategory.id);
+      }
+    }
+
+    return result;
   };
 
-  // 선택된 지역 이름들 가져오기 (부모-자식 관계 포함)
+  // 선택된 지역 이름들 가져오기
   const getSelectedRegionNames = () => {
     if (!postFilters.regionIds || postFilters.regionIds.length === 0) {
       return [];
     }
-    const result: Array<{ id: number; name: string; parentId?: number }> = [];
+    const result: Array<{ id: number; name: string }> = [];
+    const processedProvinces = new Set<number>();
 
-    for (const id of postFilters.regionIds) {
-      // 시/도에서 찾기
-      for (const province of provinces) {
-        if (province.id === id) {
-          // 시/도인 경우, 하위 시/군/구가 선택되어 있는지 확인
-          const districts = province.child || province.children || [];
-          const hasSelectedDistrict = districts.some((district) =>
-            postFilters.regionIds?.includes(district.id),
-          );
+    // 각 시/도에 대해 확인
+    for (const province of provinces) {
+      const districts = province.child || province.children || [];
+      const districtIds =
+        districts.length > 0 ? districts.map((d) => d.id) : [];
+      const selectedDistrictIds = postFilters.regionIds.filter((id) =>
+        districtIds.includes(id),
+      );
 
-          // 하위 시/군/구가 선택되어 있지 않으면 시/도만 표시
-          if (!hasSelectedDistrict) {
-            result.push({ id, name: province.name });
-          }
-          break;
+      // 시/도 ID가 선택되어 있는지 확인
+      const isProvinceSelected = postFilters.regionIds.includes(province.id);
+
+      if (districts.length === 0) {
+        // 하위 시/군/구가 없는 시/도인 경우
+        if (isProvinceSelected) {
+          result.push({
+            id: province.id,
+            name: province.name,
+          });
         }
-        // 시/군/구에서 찾기
-        const districts = province.child || province.children || [];
-        for (const district of districts) {
-          if (district.id === id) {
-            // 시/군/구인 경우 부모 시/도와 함께 표시
+        continue;
+      }
+
+      // 해당 시/도의 모든 시/군/구가 선택되어 있고 시/도 ID도 포함되어 있는지 확인
+      const allDistrictsSelected =
+        selectedDistrictIds.length > 0 &&
+        selectedDistrictIds.length === districtIds.length &&
+        isProvinceSelected;
+
+      if (allDistrictsSelected) {
+        // 모든 시/군/구가 선택되어 있으면 시/도만 표시
+        result.push({
+          id: province.id,
+          name: province.name,
+        });
+        processedProvinces.add(province.id);
+      } else if (selectedDistrictIds.length > 0) {
+        // 일부 시/군/구만 선택되어 있으면 각 시/군/구를 개별적으로 표시
+        for (const districtId of selectedDistrictIds) {
+          const district = districts.find((d) => d.id === districtId);
+          if (district) {
             result.push({
-              id,
+              id: districtId,
               name: `${province.name} > ${district.name}`,
-              parentId: province.id,
             });
-            break;
           }
         }
+        processedProvinces.add(province.id);
+      } else if (isProvinceSelected) {
+        // 시/도 ID만 선택되어 있고 시/군/구가 선택되지 않은 경우
+        result.push({
+          id: province.id,
+          name: province.name,
+        });
+        processedProvinces.add(province.id);
       }
     }
 
@@ -221,7 +365,7 @@ export default function PostsPage() {
   };
 
   const hasActiveFilters =
-    postFilters.categoryId ||
+    (postFilters.categoryIds && postFilters.categoryIds.length > 0) ||
     (postFilters.regionIds && postFilters.regionIds.length > 0) ||
     postFilters.keyword;
 
@@ -311,17 +455,28 @@ export default function PostsPage() {
                     카테고리 (소분류)
                   </label>
                   <select
-                    value={selectedSubCategory || ""}
-                    onChange={(e) =>
-                      handleSubCategoryChange(
-                        e.target.value ? parseInt(e.target.value, 10) : null,
-                      )
+                    value={
+                      selectedSubCategory === null && selectedMainCategory
+                        ? "all"
+                        : selectedSubCategory || ""
                     }
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "all" && selectedMainCategory) {
+                        // "전체" 선택 시 해당 대분류의 모든 소분류 ID 추가
+                        handleMainCategorySelect(selectedMainCategory);
+                        setSelectedSubCategory(null);
+                      } else {
+                        handleSubCategoryChange(
+                          value ? parseInt(value, 10) : null,
+                        );
+                      }
+                    }}
                     disabled={!selectedMainCategory}
-                    required={!!selectedMainCategory}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">소분류 선택</option>
+                    <option value="all">전체</option>
                     {filteredSubCategories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
@@ -344,41 +499,9 @@ export default function PostsPage() {
                         ? parseInt(e.target.value, 10)
                         : null;
                       setSelectedProvince(provinceId);
+                      setSelectedDistrict(null);
                       if (provinceId) {
-                        // 시/도 선택 시 시/군/구를 "전체"로 자동 선택
-                        setSelectedDistrict(null);
-                        // "전체" 선택 처리: 시/도만 선택하고 하위 시/군/구 제거
-                        const currentRegionIds = postFilters.regionIds || [];
-                        const provinceData = provinces.find(
-                          (p) => p.id === provinceId,
-                        );
-                        if (provinceData) {
-                          const districts =
-                            provinceData.child || provinceData.children || [];
-                          // 해당 시/도의 모든 하위 시/군/구 제거
-                          const newRegionIds = currentRegionIds.filter(
-                            (id) =>
-                              id !== provinceId &&
-                              !districts.some((d) => d.id === id),
-                          );
-                          // 시/도 추가
-                          if (!newRegionIds.includes(provinceId)) {
-                            setPostFilters({
-                              regionIds: [...newRegionIds, provinceId],
-                              page: 0,
-                            });
-                          } else {
-                            setPostFilters({
-                              regionIds:
-                                newRegionIds.length > 0
-                                  ? newRegionIds
-                                  : undefined,
-                              page: 0,
-                            });
-                          }
-                        }
-                      } else {
-                        setSelectedDistrict(null);
+                        handleProvinceSelect(provinceId);
                       }
                     }}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2"
@@ -406,38 +529,92 @@ export default function PostsPage() {
                       if (value === "all" && selectedProvince) {
                         // "전체" 선택 시 시/도만 선택하고 하위 시/군/구 제거
                         const currentRegionIds = postFilters.regionIds || [];
-                        const newRegionIds = currentRegionIds.filter(
-                          (id) =>
-                            id !== selectedProvince &&
-                            !filteredDistricts.some((d) => d.id === id),
+                        const provinceData = provinces.find(
+                          (p) => p.id === selectedProvince,
                         );
-                        if (!newRegionIds.includes(selectedProvince)) {
-                          setPostFilters({
-                            regionIds: [...newRegionIds, selectedProvince],
-                            page: 0,
-                          });
-                        } else {
-                          setPostFilters({
-                            regionIds:
-                              newRegionIds.length > 0
-                                ? newRegionIds
-                                : undefined,
-                            page: 0,
-                          });
+                        if (provinceData) {
+                          const districts =
+                            provinceData.child || provinceData.children || [];
+                          const districtIds = districts.map((d) => d.id);
+                          const newRegionIds = currentRegionIds.filter(
+                            (id) =>
+                              id !== selectedProvince &&
+                              !districtIds.includes(id),
+                          );
+                          if (!newRegionIds.includes(selectedProvince)) {
+                            setPostFilters({
+                              regionIds: [...newRegionIds, selectedProvince],
+                              page: 0,
+                            });
+                          } else {
+                            setPostFilters({
+                              regionIds:
+                                newRegionIds.length > 0
+                                  ? newRegionIds
+                                  : undefined,
+                              page: 0,
+                            });
+                          }
                         }
                         setSelectedDistrict(null);
                       } else {
                         const districtId = value ? parseInt(value, 10) : null;
                         setSelectedDistrict(districtId);
-                        if (districtId) {
-                          // 시/군/구 선택 시 해당 시/도가 이미 선택되어 있으면 유지, 아니면 추가
-                          const currentRegionIds = postFilters.regionIds || [];
-                          if (
-                            selectedProvince &&
-                            !currentRegionIds.includes(selectedProvince)
-                          ) {
-                            handleProvinceSelect(selectedProvince);
+                        if (districtId && selectedProvince) {
+                          const provinceData = provinces.find(
+                            (p) => p.id === selectedProvince,
+                          );
+                          if (provinceData) {
+                            const districts =
+                              provinceData.child || provinceData.children || [];
+                            const districtIds = districts.map((d) => d.id);
+                            const currentRegionIds =
+                              postFilters.regionIds || [];
+
+                            // 시/군/구 선택 시 해당 시/도가 이미 선택되어 있으면 제거
+                            let newRegionIds = currentRegionIds.includes(
+                              selectedProvince,
+                            )
+                              ? currentRegionIds.filter(
+                                  (id) => id !== selectedProvince,
+                                )
+                              : currentRegionIds;
+
+                            // 선택한 시/군/구 추가
+                            if (!newRegionIds.includes(districtId)) {
+                              newRegionIds = [...newRegionIds, districtId];
+                            }
+
+                            setPostFilters({
+                              regionIds: newRegionIds,
+                              page: 0,
+                            });
+
+                            // 선택 후 해당 시/도의 모든 시/군/구가 선택되었는지 확인
+                            const selectedDistrictIds = newRegionIds.filter(
+                              (id) => districtIds.includes(id),
+                            );
+
+                            // 모든 시/군/구가 선택되었으면 시/도 ID 추가하고 하위 시/군/구 제거
+                            if (
+                              selectedDistrictIds.length ===
+                                districtIds.length &&
+                              !newRegionIds.includes(selectedProvince)
+                            ) {
+                              const finalRegionIds = newRegionIds.filter(
+                                (id) => !districtIds.includes(id),
+                              );
+                              setPostFilters({
+                                regionIds: [
+                                  ...finalRegionIds,
+                                  selectedProvince,
+                                ],
+                                page: 0,
+                              });
+                              setSelectedDistrict(null);
+                            }
                           }
+                        } else if (districtId) {
                           handleDistrictSelect(districtId);
                         }
                       }
@@ -460,86 +637,105 @@ export default function PostsPage() {
         )}
 
         {/* 선택된 필터 Chip 표시 */}
-        {(getSelectedCategoryName() || getSelectedRegionNames().length > 0) && (
+        {(getSelectedCategoryNames().length > 0 ||
+          getSelectedRegionNames().length > 0) && (
           <div className="mb-4 flex flex-wrap gap-2">
-            {getSelectedCategoryName() && (
-              <div className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800">
-                <span>카테고리: {getSelectedCategoryName()}</span>
-                <button
-                  onClick={() => {
-                    setSelectedMainCategory(null);
-                    setSelectedSubCategory(null);
-                    setPostFilters({ categoryId: undefined, page: 0 });
-                  }}
-                  className="ml-1 hover:text-blue-600"
+            {getSelectedCategoryNames().map((category) => {
+              return (
+                <div
+                  key={category.id}
+                  className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            )}
+                  <span>카테고리: {category.name}</span>
+                  <button
+                    onClick={() => {
+                      // 대분류인 경우 해당 대분류의 모든 하위 소분류도 제거
+                      const mainCategoryData = mainCategories.find(
+                        (c) => c.id === category.id,
+                      );
+                      let newCategoryIds =
+                        postFilters.categoryIds?.filter(
+                          (id) => id !== category.id,
+                        ) || [];
+
+                      if (mainCategoryData) {
+                        // 대분류인 경우 하위 소분류도 제거
+                        const subCategories =
+                          mainCategoryData.child ||
+                          mainCategoryData.children ||
+                          [];
+                        const subCategoryIds = subCategories.map((c) => c.id);
+                        newCategoryIds = newCategoryIds.filter(
+                          (id) => !subCategoryIds.includes(id),
+                        );
+                      }
+
+                      setPostFilters({
+                        categoryIds:
+                          newCategoryIds.length > 0
+                            ? newCategoryIds
+                            : undefined,
+                        page: 0,
+                      });
+                      // 선택된 대분류나 소분류가 제거되면 상태도 초기화
+                      if (category.id === selectedMainCategory) {
+                        setSelectedMainCategory(null);
+                        setSelectedSubCategory(null);
+                      } else if (category.id === selectedSubCategory) {
+                        setSelectedSubCategory(null);
+                      }
+                    }}
+                    className="ml-1 hover:text-blue-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
             {getSelectedRegionNames().map((region) => {
               return (
                 <div
                   key={region.id}
                   className="flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-sm text-green-800"
                 >
-                  <span>{region.name}</span>
+                  <span>지역: {region.name}</span>
                   <button
                     onClick={() => {
-                      // 시/군/구를 제거할 때는 해당 시/군/구만 제거
-                      // 시/도를 제거할 때는 해당 시/도의 모든 하위 시/군/구도 제거
-                      if (region.parentId) {
-                        // 시/군/구인 경우 해당 시/군/구만 제거
-                        const newRegionIds =
-                          postFilters.regionIds?.filter(
-                            (id) => id !== region.id,
-                          ) || [];
-                        setPostFilters({
-                          regionIds:
-                            newRegionIds.length > 0 ? newRegionIds : undefined,
-                          page: 0,
-                        });
-                        if (region.id === selectedDistrict) {
-                          setSelectedDistrict(null);
-                        }
-                      } else {
-                        // 시/도인 경우 해당 시/도와 모든 하위 시/군/구 제거
-                        const province = provinces.find(
-                          (p) => p.id === region.id,
+                      // 시/도인 경우 해당 시/도의 모든 시/군/구도 제거
+                      const province = provinces.find(
+                        (p) => p.id === region.id,
+                      );
+                      let newRegionIds =
+                        postFilters.regionIds?.filter(
+                          (id) => id !== region.id,
+                        ) || [];
+
+                      if (province) {
+                        // 시/도인 경우 하위 시/군/구도 제거
+                        const districts =
+                          province.child || province.children || [];
+                        const districtIds = districts.map((d) => d.id);
+                        newRegionIds = newRegionIds.filter(
+                          (id) => !districtIds.includes(id),
                         );
-                        if (province) {
-                          const districts =
-                            province.child || province.children || [];
-                          const districtIds = districts.map((d) => d.id);
-                          const newRegionIds =
-                            postFilters.regionIds?.filter(
-                              (id) =>
-                                id !== region.id && !districtIds.includes(id),
-                            ) || [];
-                          setPostFilters({
-                            regionIds:
-                              newRegionIds.length > 0
-                                ? newRegionIds
-                                : undefined,
-                            page: 0,
-                          });
-                        } else {
-                          const newRegionIds =
-                            postFilters.regionIds?.filter(
-                              (id) => id !== region.id,
-                            ) || [];
-                          setPostFilters({
-                            regionIds:
-                              newRegionIds.length > 0
-                                ? newRegionIds
-                                : undefined,
-                            page: 0,
-                          });
-                        }
-                        if (region.id === selectedProvince) {
-                          setSelectedProvince(null);
-                          setSelectedDistrict(null);
-                        }
+                      } else {
+                        // 시/군/구인 경우 해당 시/군/구만 제거
+                        newRegionIds = newRegionIds.filter(
+                          (id) => id !== region.id,
+                        );
+                      }
+
+                      setPostFilters({
+                        regionIds:
+                          newRegionIds.length > 0 ? newRegionIds : undefined,
+                        page: 0,
+                      });
+                      // 선택된 시/도나 시/군/구가 제거되면 상태도 초기화
+                      if (region.id === selectedProvince) {
+                        setSelectedProvince(null);
+                        setSelectedDistrict(null);
+                      } else if (region.id === selectedDistrict) {
+                        setSelectedDistrict(null);
                       }
                     }}
                     className="ml-1 hover:text-green-600"
@@ -670,20 +866,34 @@ export default function PostsPage() {
                 <Link href={`/posts/${post.id}`} className="block">
                   <Card className="h-full transition-shadow hover:shadow-lg relative">
                     {/* 즐겨찾기 버튼 */}
-                    <button
-                      type="button"
-                      onClick={handleFavoriteClick}
-                      className="absolute right-2 top-2 z-10 rounded-full bg-white bg-opacity-80 p-2 shadow-md hover:bg-opacity-100 transition-all"
-                      disabled={toggleFavoriteMutation.isPending || isAuthor}
-                    >
-                      <Heart
-                        className={`h-5 w-5 ${
-                          (post.isFavorite ?? false)
-                            ? "fill-red-500 text-red-500"
-                            : "text-gray-400"
-                        }`}
-                      />
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={handleFavoriteClick}
+                            className="absolute right-2 top-2 z-10 rounded-full bg-white bg-opacity-80 p-2 shadow-md hover:bg-opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={
+                              toggleFavoriteMutation.isPending ||
+                              Boolean(isAuthor)
+                            }
+                          >
+                            <Heart
+                              className={`h-5 w-5 ${
+                                (post.isFavorite ?? false)
+                                  ? "fill-red-500 text-red-500"
+                                  : "text-gray-400"
+                              }`}
+                            />
+                          </button>
+                        </TooltipTrigger>
+                        {isAuthor && (
+                          <TooltipContent>
+                            <p>자신의 게시글에는 즐겨찾기를 할 수 없습니다.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
 
                     {/* 썸네일 이미지 */}
                     {(post.thumbnailImageUrl ||
@@ -701,15 +911,15 @@ export default function PostsPage() {
                           className="object-cover"
                         />
                         {/* 카테고리 배지 (좌측 상단) */}
-                        <div className="absolute left-2 top-2 z-10 flex flex-col gap-1 items-start">
+                        <div className="absolute left-2 top-2 z-10 flex flex-col gap-1">
                           {mainCategory && (
-                            <span className="inline-block rounded-md bg-blue-500 px-2 py-1 text-xs font-medium text-white whitespace-nowrap">
+                            <span className="rounded-md bg-blue-500 px-2 py-1 text-xs font-medium text-white">
                               {mainCategory.name}
                             </span>
                           )}
                           {subCategory &&
                             subCategory.id !== mainCategory?.id && (
-                              <span className="inline-block rounded-md bg-blue-400 px-2 py-1 text-xs font-medium text-white whitespace-nowrap">
+                              <span className="rounded-md bg-blue-400 px-2 py-1 text-xs font-medium text-white">
                                 {subCategory.name}
                               </span>
                             )}
@@ -752,44 +962,16 @@ export default function PostsPage() {
 
                       {/* 지역 표시 */}
                       {regionNames.length > 0 && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={`mb-3 flex items-center gap-1 text-xs text-gray-500 ${
-                                  regionNames.length > MAX_VISIBLE_REGIONS
-                                    ? "cursor-pointer"
-                                    : ""
-                                }`}
-                              >
-                                <span>📍</span>
-                                <span className="line-clamp-1">
-                                  {regionNames
-                                    .slice(0, MAX_VISIBLE_REGIONS)
-                                    .join(", ")}
-                                  {regionNames.length > MAX_VISIBLE_REGIONS &&
-                                    ` +${regionNames.length - MAX_VISIBLE_REGIONS}`}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            {regionNames.length > MAX_VISIBLE_REGIONS && (
-                              <TooltipContent>
-                                <div className="max-w-xs">
-                                  <p className="font-medium mb-2 text-sm">
-                                    전체 지역 ({regionNames.length}개)
-                                  </p>
-                                  <div className="space-y-1">
-                                    {regionNames.map((name, index) => (
-                                      <div key={index} className="text-xs">
-                                        {name}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </TooltipContent>
-                            )}
-                          </Tooltip>
-                        </TooltipProvider>
+                        <div className="mb-3 flex items-center gap-1 text-xs text-gray-500">
+                          <span>📍</span>
+                          <span className="line-clamp-1">
+                            {regionNames
+                              .slice(0, MAX_VISIBLE_REGIONS)
+                              .join(", ")}
+                            {regionNames.length > MAX_VISIBLE_REGIONS &&
+                              ` +${regionNames.length - MAX_VISIBLE_REGIONS}`}
+                          </span>
+                        </div>
                       )}
 
                       {/* 작성자 이름 및 작성일 (하단) */}
