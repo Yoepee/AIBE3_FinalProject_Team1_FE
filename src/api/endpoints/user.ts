@@ -93,3 +93,22 @@ export async function banUserByAdmin(userId: number): Promise<void> {
 export async function unbanUserByAdmin(userId: number): Promise<void> {
   return apiClient.patch<void>(`/api/v1/adm/members/${userId}/unban`, {});
 }
+/**
+ * 사용자 후기 요약 조회
+ */
+export async function getReviewSummary(
+  memberId: number,
+): Promise<import("@/types/domain").ReviewSummary> {
+  return apiClient.get<import("@/types/domain").ReviewSummary>(
+    `/api/v1/members/${memberId}/review-summary`,
+  );
+}
+
+/**
+ * 회원별 AI 후기 요약 조회
+ */
+export async function getMemberReviewAISummary(
+  memberId: number,
+): Promise<string> {
+  return apiClient.get<string>(`/api/v1/members/${memberId}/reviews/summary`);
+}

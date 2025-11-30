@@ -41,25 +41,29 @@ import { useCreateChatRoomMutation } from "@/queries/chat";
 import { useDeletePostMutation, usePostQuery } from "@/queries/post";
 import { useToggleFavoriteMutation } from "@/queries/post-favorite";
 import { useRegionListQuery } from "@/queries/region";
-import { useReviewsByPostQuery } from "@/queries/review";
+import {
+  usePostReviewAISummaryQuery,
+  usePostReviewSummaryQuery,
+  useReviewsByPostQuery,
+} from "@/queries/review";
+import { useReviewSummaryQuery } from "@/queries/user";
 
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Edit,
   Flag,
   Heart,
   MapPin,
   RotateCcw,
+  Sparkles,
   Star,
   Trash2,
   Truck,
   User,
 } from "lucide-react";
-
-/**
- * 게시글 상세 페이지
- */
 
 export default function PostDetailPage() {
   const params = useParams();
@@ -71,16 +75,26 @@ export default function PostDetailPage() {
     enabled: !deletePostMutation.isPending && !isDeleted, // 삭제 중이거나 삭제 완료 시 쿼리 비활성화
   });
   const [reviewPage, setReviewPage] = useState(0);
+  const [isAISummaryExpanded, setIsAISummaryExpanded] = useState(true);
   const reviewPageSize = 5;
   const { data: reviewsData } = useReviewsByPostQuery(postId, {
     page: reviewPage,
     size: reviewPageSize,
   });
+  const { data: postReviewSummary } = usePostReviewSummaryQuery(postId);
+  const { data: aiSummary, isLoading: isAISummaryLoading } =
+    usePostReviewAISummaryQuery(postId);
   const { isAuthenticated, user } = useAuthStore();
   const toggleFavoriteMutation = useToggleFavoriteMutation();
   const createChatRoomMutation = useCreateChatRoomMutation();
   const { data: categories } = useCategoryListQuery();
   const { data: regions } = useRegionListQuery();
+  const authorId = post?.author?.id ?? post?.authorId;
+  const {
+    data: reviewSummary,
+    isError: isReviewSummaryError,
+    isLoading: isReviewSummaryLoading,
+  } = useReviewSummaryQuery(authorId);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reviewReportDialogOpen, setReviewReportDialogOpen] = useState(false);
@@ -162,18 +176,6 @@ export default function PostDetailPage() {
   const reviews = reviewsData?.content || [];
   const totalReviewPages = reviewsData?.page?.totalPages || 1;
   const totalReviewCount = reviewsData?.page?.totalElements || reviews.length;
-  const averageRating =
-    reviews.length > 0
-      ? reviews.reduce(
-          (sum, review) =>
-            sum +
-            (review.equipmentScore +
-              review.kindnessScore +
-              review.responseTimeScore) /
-              3,
-          0,
-        ) / reviews.length
-      : 0;
 
   const handleFavorite = () => {
     toggleFavoriteMutation.mutate(postId);
@@ -243,7 +245,7 @@ export default function PostDetailPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <Button variant="ghost" onClick={() => router.back()}>
           ← 뒤로가기
@@ -569,10 +571,61 @@ export default function PostDetailPage() {
                     >
                       {post.author?.nickname || post.authorNickname || "익명"}
                     </button>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                      <span>★4.9</span>
-                      <span>응답률 98%</span>
-                    </div>
+                    {!isReviewSummaryLoading &&
+                      !isReviewSummaryError &&
+                      reviewSummary && (
+                        <div className="space-y-1 mt-1">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span className="flex items-center gap-0.5 text-yellow-500">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span className="font-bold text-gray-900">
+                                {reviewSummary.avgScore.toFixed(1)}
+                              </span>
+                            </span>
+                            {reviewSummary.count > 0 && (
+                              <span className="text-gray-500 text-xs">
+                                ({reviewSummary.count}개 후기)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-gray-600">
+                            <span className="flex items-center gap-1">
+                              장비
+                              <span className="flex items-center gap-0.5 text-yellow-500">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span>
+                                  {reviewSummary.equipmentScore.toFixed(1)}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              친절도
+                              <span className="flex items-center gap-0.5 text-yellow-500">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span>
+                                  {reviewSummary.kindnessScore.toFixed(1)}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              응답시간
+                              <span className="flex items-center gap-0.5 text-yellow-500">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span>
+                                  {reviewSummary.responseTimeScore.toFixed(1)}
+                                </span>
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    {!isReviewSummaryLoading &&
+                      !isReviewSummaryError &&
+                      !reviewSummary && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          아직 후기가 없습니다.
+                        </div>
+                      )}
                     {post.author?.createdAt && (
                       <p className="text-xs text-gray-500 mt-1">
                         {(() => {
@@ -839,18 +892,102 @@ export default function PostDetailPage() {
           {/* 후기 섹션 */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  후기{" "}
-                  {reviews.length > 0 && (
-                    <span className="text-base font-normal text-gray-500">
-                      ★{averageRating.toFixed(1)} ({totalReviewCount}개 후기)
+              <CardTitle>후기</CardTitle>
+              {postReviewSummary ? (
+                <div className="flex items-center gap-3 text-xs text-gray-600 mt-2">
+                  <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-0.5 text-yellow-500">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-bold text-gray-900">
+                        {postReviewSummary.avgScore.toFixed(1)}
+                      </span>
                     </span>
-                  )}
-                </CardTitle>
-              </div>
+                    {postReviewSummary.count > 0 && (
+                      <span className="text-gray-500">
+                        ({postReviewSummary.count}개 후기)
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    장비
+                    <span className="flex items-center gap-0.5 text-yellow-500">
+                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                      <span>{postReviewSummary.equipmentScore.toFixed(1)}</span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    친절도
+                    <span className="flex items-center gap-0.5 text-yellow-500">
+                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                      <span>{postReviewSummary.kindnessScore.toFixed(1)}</span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    응답시간
+                    <span className="flex items-center gap-0.5 text-yellow-500">
+                      <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                      <span>
+                        {postReviewSummary.responseTimeScore.toFixed(1)}
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              ) : reviews.length > 0 ? (
+                <div className="text-xs text-gray-500 mt-2">
+                  ({totalReviewCount}개 후기)
+                </div>
+              ) : null}
             </CardHeader>
             <CardContent>
+              {/* AI 후기 요약 */}
+              {isAISummaryLoading ? (
+                <div className="mb-6 rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-6 border border-blue-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-5 w-5 text-blue-600 animate-pulse" />
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      AI 후기 요약
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <div className="h-2 w-2 bg-blue-600 rounded-full animate-bounce" />
+                    <div
+                      className="h-2 w-2 bg-blue-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    />
+                    <div
+                      className="h-2 w-2 bg-blue-600 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.4s" }}
+                    />
+                    <p className="ml-2">AI 후기 요약 생성중입니다...</p>
+                  </div>
+                </div>
+              ) : aiSummary &&
+                aiSummary.trim() &&
+                aiSummary.trim() !== "후기가 없습니다." ? (
+                <div className="mb-6 rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 p-6 border border-blue-100">
+                  <button
+                    onClick={() => setIsAISummaryExpanded(!isAISummaryExpanded)}
+                    className="w-full flex items-center justify-between gap-2 mb-3 hover:opacity-80 transition-opacity"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        AI 후기 요약
+                      </h3>
+                    </div>
+                    {isAISummaryExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-gray-600" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-gray-600" />
+                    )}
+                  </button>
+                  {isAISummaryExpanded && (
+                    <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                      {aiSummary}
+                    </p>
+                  )}
+                </div>
+              ) : null}
               {reviews.length > 0 ? (
                 <div className="space-y-6">
                   {reviews.map((review) => {
@@ -862,7 +999,7 @@ export default function PostDetailPage() {
                     return (
                       <div
                         key={review.id}
-                        className="border-b pb-6 last:border-0 relative"
+                        className="border-b border-gray-100 pb-6 last:border-0 relative"
                       >
                         {/* 신고하기 버튼 - 우측 상단 */}
                         {isAuthenticated && (

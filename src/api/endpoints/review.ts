@@ -101,3 +101,26 @@ export async function banReviewByAdmin(reviewId: number): Promise<void> {
 export async function unbanReviewByAdmin(reviewId: number): Promise<void> {
   return apiClient.patch<void>(`/api/v1/adm/reviews/${reviewId}/unban`, {});
 }
+
+/**
+ * 게시글별 후기 요약 조회
+ */
+export async function getPostReviewSummary(
+  postId: number,
+): Promise<import("@/types/domain").ReviewSummary> {
+  return apiClient.get<import("@/types/domain").ReviewSummary>(
+    `/api/v1/posts/${postId}/review-summary`,
+  );
+}
+
+/**
+ * 게시글별 AI 후기 요약 조회
+ */
+export async function getPostReviewAISummary(
+  postId: number,
+): Promise<string> {
+  // apiClient.get은 이미 result.data를 반환하므로 string 타입으로 지정
+  return apiClient.get<string>(
+    `/api/v1/posts/${postId}/reviews/summary`,
+  );
+}
