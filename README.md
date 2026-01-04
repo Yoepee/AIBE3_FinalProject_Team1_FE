@@ -689,9 +689,7 @@ return "https://" + cloudfrontDomain + "/" + resizedKey;
 </details>
 
 <details>
-<summary><strong>🔔 알림 타입 기준 Batch 로딩과 Mapper 기반 응답 조합을 적용한 알림 조회 설계 </strong></summary>
-
-<br>
+<summary><strong>🔔 조회 성능 및 타입 확장성을 고려한 알림 시스템 개발 </strong></summary>
 
 ### 기능 개요
 
@@ -709,9 +707,9 @@ return "https://" + cloudfrontDomain + "/" + resizedKey;
 - **요청 쿼리 최소화**
   - 알림 개수에 비례해 쿼리가 증가하는 N+1 문제 방지
 - **확장성 확보**
-  - 알림 타입 추가 시 서비스 계층 로직 수정 없이 확장 가능
+  - 알림 타입 추가 시 서비스 로직 수정 없이 확장
 - **역할 분리**
-  - 조회 / 로딩 / 응답 조합 책임을 명확히 분리
+  - 데이터 변환 방식과 조회 전략을 분리하고, 서비스는 실행 흐름만 담당
  
 ---
 
@@ -719,16 +717,15 @@ return "https://" + cloudfrontDomain + "/" + resizedKey;
 ### 처리 흐름
 
 ```text
-알림 엔티티 페이징 조회
-(알림 타입, 연관 엔티티 ID)
+알림 엔티티 페이징 조회 (연관 엔티티 조회 x)
         ↓
-알림 타입 기준 그룹화
+GroupType 기준으로 그룹화
         ↓
-그룹별 Batch 조회로 필요한 엔티티 로딩
+그룹별로 묶어서 연관 엔티티 조회
         ↓
-Mapper를 통한 타입별 응답 데이터 매핑
+정의한 Mapper를 사용해 응답 형태로 가공
         ↓
-  페이징 응답 반환
+페이징 응답
 ```
 ---
 
@@ -742,12 +739,13 @@ Page<Notification> notificationsPage =
 
 List<Notification> notifications = notificationsPage.getContent();
 ```
-- 알림 엔티티 페이징 조회
-- 알림 ID, 알림 타입 등 기본 정보와 함께 연관 엔티티 ID 조회
+- 알림 목록을 최신 순으로 페이징 조회
+- 이 단계에서는 연관 엔티티를 조회하지 않음
+- 알림 타입별 가공 및 매핑을 위해 페이징 결과에서 알림 목록을 추출
 
 ---
 
-#### 2. 알림 타입 기준 그룹화
+#### 2. GroupType 기준 그룹화
 
 ```java
 Map<NotificationType.GroupType, List<Long>> groupedTargetIds =
@@ -757,12 +755,12 @@ Map<NotificationType.GroupType, List<Long>> groupedTargetIds =
                         Collectors.mapping(Notification::getTargetId, Collectors.toList())
                 ));
 ```
-- batch 조회를 위한 사전 작업
-- GroupType을 Key로, 조회해야 할 연관 엔티티 ID들을 그룹화
+- 알림타입은 다르지만 필요한 연관 엔티티가 같은 알림끼리 그룹화 하기 위해 GroupType 추가
+- GroupType 별 조회해야할 엔티티들의 ID 값들을 갖도록 그룹화
 
 ---
 
-#### 3. 그룹별 Batch 조회로 연관 엔티티 로딩
+#### 3. 그룹별로 묶어서 연관 엔티티 조회
 
 ```java
 for (Map.Entry<NotificationType.GroupType, List<Long>> entry : groupedTargetIds.entrySet()) {
@@ -770,76 +768,72 @@ for (Map.Entry<NotificationType.GroupType, List<Long>> entry : groupedTargetIds.
     List<Long> targetIds = entry.getValue();
 
     Function<List<Long>, Map<Long, ?>> loader = batchLoaders.get(groupType);
-    if (loader != null) {
-      loadedEntities.put(groupType, loader.apply(targetIds));
-    }
+    loadedEntities.put(groupType, loader.apply(targetIds));
 }
 ```
 
-- 그룹화 한 Map 정보를 바탕으로 타입 별로 batch 조회
+- GroupType별 조회 방법을 batchLoaders에서 찾아서 그룹별로 연관 엔티티를 묶어서 조회 (IN 활용)
 - 알림 개수와 무관하게 타입 수 만큼만 쿼리 발생
+- batchLoaders는 GroupType별 조회 방법을 관리하는 빈(Bean)
 
 ---
 
-#### 4. Mapper를 통한 타입별 응답 데이터 매핑
+#### 4. 정의한 Mapper를 사용해 응답 형태로 가공
 
 ```java
 for (Notification notification : notifications) {
-    NotificationDataMapper<? extends NotificationData> mapper =
-            mapperRegistry.get(notification.getType());
+    NotificationDataMapper<? extends NotificationData> mapper = mapperRegistry.get(notification.getType());
 
-    Map<Long, ?> entityMap =
-            loadedEntities.get(notification.getType().getGroupType());
-    Object entity =
-            entityMap != null ? entityMap.get(notification.getTargetId()) : null;
+    Map<Long, ?> entityMap = loadedEntities.get(notification.getType().getGroupType());
+    Object entity = entityMap.get(notification.getTargetId());
 
     NotificationData data = mapper.map(entity, notification);
+    resBodyList.add(data);
 }
 
 ```
 
 ---
 
-- Batch 조회 시 DTO로 직접 조회하지 않고 Entity를 로딩한 뒤 Mapper에서 응답 DTO로 변환
-- 알림 타입별 응답 구조 변경 시 쿼리 수정 없이 Mapper만 변경 가능
+- 조회된 알림을 순서대로 순회하며, 타입에 맞는 매퍼를 조회해 응답 데이터로 변환
+- MapperRegistry는 NotificationType별 NotificationDataMapper 구현체를 관리하는 빈(Bean)
 
-#### 5. 응답 반환
+#### 5. 페이징 응답
 
 ```java
-public record NotificationResBody<T extends NotificationData>(
-        Long id,
-        NotificationType notificationType,
-        LocalDateTime createdAt,
-        Boolean isRead,
-        T data
-)
+Page<NotificationResBody<? extends NotificationData>> page =
+		new PageImpl<>(resBodyList, pageable, notificationsPage.getTotalElements());
 ```
 
-- 위 형태의 응답 DTO를 페이징 으로 감싸서 반환
-- 하나의 API 응답에서 알림 타입에 따라 서로 다른 데이터 구조를 반환
+- 가공된 알림 응답 데이터를 페이징 정보와 함께 Page 형태로 구성 및 응답
 
 <br>
 
 ---
 
-### 새로운 알림 타입 추가
+### 확장 구조 및 알림 타입 추가 방식
 
-새로운 알림 타입이 추가되더라도 **기존 조회 로직이나 서비스 계층 코드는 수정하지 않습니다.**  
-아래 두 지점만 확장하도록 설계했습니다.
+이 설계에서는 **데이터 변환 방식과 조회 전략을 분리**하고,
+**서비스 계층은 전체 실행 흐름을 조합**하는 역할만 담당합니다.
 
-- **Batch 조회 로더 추가**
-  - 알림 타입이 참조하는 연관 엔티티를 한 번에 조회하는 로직을 `GroupType` 기준으로 등록
+- 서비스 계층은 타입 정보를 기준으로 조회 전략과 변환 전략을 선택하고 실행 순서만 조합
 
-- **알림 타입별 Mapper 추가**
-  - 해당 알림 타입의 응답 데이터를 생성하는 `NotificationDataMapper` 구현체만 추가
+이를 통해 알림 타입이 증가하더라도
+기존 조회 흐름이나 서비스 로직을 변경하지 않고 확장이 가능합니다.
 
-이 구조를 통해,
-- 알림 타입 증가에 따른 **조건 분기 코드 증가를 방지**
-- **쿼리 구조와 조회 흐름은 그대로 유지**
-- 알림 타입 확장 시 **로딩 로직과 응답 매핑만 분리해서 확장 가능**
+#### 새로운 알림 타입 추가 시
 
-결과적으로,  
-**조회 성능과 응답 확장성을 동시에 유지할 수 있는 구조**로 알림 조회 API를 설계했습니다.
+- NotificationType Enum 클래스에 타입 확장 및 GroupType 포함 관계 정의
+- NotificationConfig 스프링 설정 클래스의 조회 방식들을 관리하는 빈(Bean)에 조회 방식 추가
+- NotificationConfig 스프링 설정 클래스의 매퍼들을 관리하는 빈(Bean)에 매퍼 추가
+
+---
+
+### 설계 효과 요약
+
+- ✅ 연관 데이터를 한 번에 조회하여 쿼리 횟수 최소화
+- ✅ 알림 타입 확장 시 서비스 로직 수정 없이 확장 가능
+- ✅ 데이터 변환 방식과 조회 전략을 분리하고, 서비스는 실행 흐름만 담당하여 구조적 복잡도 감소
 
 <br>
 
